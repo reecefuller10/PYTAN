@@ -3,11 +3,8 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
-class resource:
-    def __init__(self, type, amount):
-        self.type = type
-        self.amount = amount
 
+        
 # resources and dev cards should be dictionaries
 class player:
     def __init__(self, ID, color, resources, roads, settlements, cities, dev_cards, victory_points):
@@ -25,27 +22,66 @@ def create_players(num):
     colours = ["red", "blue", "green", "yellow"]
     player_dict = {}
     for i in range(num):
-        player_dict[colours[i]] = player(i, colours[i], {"bricks": 0, "lumber": 0, "wool": 0, "wheat": 0}, 15, 5, 4, {"knight": 0, "monopoly": 0, "year_of_plenty": 0, "road_building": 0, "victory_point": 0}, 0)
+        player_dict[colours[i]] = player(i, colours[i], {"brick": 0, "wood": 0, "wool": 0, "wheat": 0, 'sheep': 0, 'rock':0}, 15, 5, 4, {"knight": 0, "monopoly": 0, "year_of_plenty": 0, "road_building": 0, "victory_point": 0}, 0)
 
-    print(player_dict)
+
     return player_dict
 
 def create_bank():
 
-    bricks = resource("bricks", 19)
-    lumber = resource("lumber", 19)
-    wool = resource("wool", 19)
-    wheat= resource("wheat", 19)
-
-    bank_dict = {"bricks": bricks, "lumber": lumber, "wool": wool, "wheat": wheat}
+    bank_dict = {"brick": 19, "wood": 19, "sheep": 19, "wheat": 19, 'rock': 19}
 
     return bank_dict
 
-def give_resource(player, resource, amount, bank_dict):
-    player.resources[resource] += amount
-    bank_dict[resource].amount -= amount
+def create_dev_bank():
+  
+    dev_bank = ['knight','knight','knight','knight','knight','knight','knight','knight','knight','knight','knight','knight','knight','knight','monopoly','monopoly','year_of_plenty','year_of_plenty','road_building','road_building','victory_point','victory_point','victory_point','victory_point','victory_point']
 
-    return player, bank_dict
+    return dev_bank
+
+def draw_dev_card(dev_bank, player, player_dict):
+    card = random.choice(dev_bank)
+    dev_bank.remove(card)
+
+    if card == 'knight':
+        player_dict[player].dev_cards['knight'] += 1
+    elif card == 'monopoly':
+        player_dict[player].dev_cards['monopoly'] += 1
+    elif card == 'year_of_plenty':
+        player_dict[player].dev_cards['year_of_plenty'] += 1
+    elif card == 'road_building':
+        player_dict[player].dev_cards['road_building'] += 1
+    elif card == 'victory_point':
+        player_dict[player].dev_cards['victory_point'] += 1
+        
+    return card, dev_bank, player_dict
+
+def move_robber(to_tile):
+
+    return to_tile
+
+def give_resource(G, rolls, player_dict,player, terrain_lookup, bank_dict,robber):
+
+    for roll in rolls:
+        if roll != robber:
+            for node in G.nodes:
+                if roll in G.nodes[node]['resource']:
+                    if G.nodes[node]['player'] == player:
+                        if terrain_lookup[roll] == "desert":
+                            print("no resource to give, this is a desert tile")
+                        else:
+                            #print(player_dict)
+                            if G.nodes[node]['city'] == True:
+                                player_dict[player].resources[terrain_lookup[roll]] += 2
+                                bank_dict[terrain_lookup[roll]] -= 2
+                            elif G.nodes[node]['settlement'] == True:
+                                player_dict[player].resources[terrain_lookup[roll]] += 1
+                                bank_dict[terrain_lookup[roll]] -= 1
+        else:
+            print("robber is on this tile, no resources given")
+                        
+
+    return player_dict, bank_dict
 
 def trade(player1, player2, resource1, resource2, amount1, amount2):
     player1.resources[resource1] -= amount1
@@ -92,26 +128,71 @@ def link_resource_tiles(G):
 
     return G
 
-def roll_dice(G, player_dict, bank_dict, roll_lookup):
+def roll_dice(roll_lookup):
 
     roll = random.randint(1,6)+ random.randint(1,6)
-    print(f'roll: {roll}')
 
-    x = [k for k,v in roll_lookup.items() if v == roll]
+    roll = 8
 
-    print(f'hexes giving resources: {x}')
+    print(f'dice rolled a {roll}')
+
+    hexes = [k for k,v in roll_lookup.items() if v == roll]
+    
+    print(f'hexes giving resources: {hexes}')
+
+    return hexes
 
 def place_settlement(G,player, player_dict, node):
 
-    if player_dict[player].settlements > 0:
-        G.nodes[node]['player'] = player
-        G.nodes[node]['settlement'] = True
-        player_dict[player].settlements -= 1
+    valid = False
+    for n in  G.neighbors(node):
+        if G.nodes[n]['settlement'] == True or G.nodes[n]['city'] == True:
+            print("You cannot place a settlement here. A settlement is already present on an adjacent node")
+            return G, player_dict
+    
+    for n in G.neighbors(node):
+        if G.edges[(node,n)]['player'] == player:
+            print(f'there is a road from {node} to {n}, therefore valid')
+            valid = True
 
+    if valid:
+        if player_dict[player].settlements > 0:
+            G.nodes[node]['player'] = player
+            G.nodes[node]['settlement'] = True
+            player_dict[player].settlements -= 1
+
+        else:
+            print("You do not have any settlements left to place")
     else:
-        print("You do not have any settlements left to place")
+        print(f'no road adjacent to {node}')
 
     return G, player_dict
+
+def place_city(G,player, player_dict, node):
+        
+        valid = False
+        for n in  G.neighbors(node):
+            if G.nodes[n]['settlement'] == True or G.nodes[n]['city'] == True:
+                print("You cannot place a settlement here. A settlement is already present on an adjacent node")
+                return G, player_dict
+        
+        for n in G.neighbors(node):
+            if G.edges[(node,n)]['player'] == player:
+                print(f'there is a road from {node} to {n}, therefore valid')
+                valid = True
+        
+        if valid:
+            if player_dict[player].cities > 0:
+                G.nodes[node]['player'] = player
+                G.nodes[node]['city'] = True
+                player_dict[player].cities -= 1
+        
+            else:
+                print("You do not have any cities left to place")
+        else:
+            print(f'no road adjacent to {node}')
+
+        return G, player_dict
     
 def place_road(G,player,player_dict,edge):
 
@@ -123,7 +204,6 @@ def place_road(G,player,player_dict,edge):
         print("You do not have any roads left to place")
 
     return G, player_dict
-
 
 def create_roll_prob(G, terrain_lookup):
 
@@ -149,10 +229,11 @@ def create_roll_prob(G, terrain_lookup):
 
     return roll_lookup
 
-
 def create_4_player_board():
+
     G = nx.Graph()
-    G.add_nodes_from([i for i in range(30)], type='vertex', player = None, settlement = False, city = False)
+
+    G.add_nodes_from([i for i in range(30)], type='vertex', player = None, settlement = False, city = False, robber = False)
         
     for i in G.nodes:
         if i != 29:
@@ -160,7 +241,7 @@ def create_4_player_board():
         else:
             G.add_edge(i, 0)
     
-    G.add_nodes_from([i for i in range(30,48)],type = 'vertex', player = None,settlement = False, city = False)
+    G.add_nodes_from([i for i in range(30,48)],type = 'vertex', player = None,settlement = False, city = False, robber = False)
 
     for i in range(30,48):
         if i != 47:
@@ -168,7 +249,7 @@ def create_4_player_board():
         else:
             G.add_edge(i, 30)
 
-    G.add_nodes_from([i for i in range(48, 54)], type = 'vertex', player = None,settlement = False, city = False)
+    G.add_nodes_from([i for i in range(48, 54)], type = 'vertex', player = None,settlement = False, city = False, robber = False)
 
     for i in range(48,54):
         if i != 53:
@@ -208,9 +289,6 @@ def create_4_player_board():
         to_node += 1
         if to_node == 53:
             break
-
-    
-
         
     G = link_resource_tiles(G)
 
@@ -221,7 +299,7 @@ def create_4_player_board():
 
 def populate_terrain():
 
-    terrain = ["forest", "forest", "forest", "forest", "pasture", "pasture", "pasture", "pasture", "field", "field", "field", "field", "hill", "hill", "hill", "mountain", "mountain", "mountain", "desert"]
+    terrain = ["wood", "wood", "wood", "wood", "sheep", "sheep", "sheep", "sheep", "wheat", "wheat", "wheat", "wheat", "brick", "brick", "brick", "rock", "rock", "rock", "desert"]
     terrain_lookup = {}
 
     is_random = True
@@ -240,16 +318,20 @@ def populate_terrain():
 def get_resource():
     pass
 
-
 def main():
 
     
     G = create_4_player_board()
 
-    print(G.nodes.data())
+    dev_bank = create_dev_bank()
 
     terrain_lookup = populate_terrain()
-    print(terrain_lookup)
+    x = [k for k,v in terrain_lookup.items() if v == "desert"]
+    print(f'desert: {x}')
+
+    robber = x[0]
+
+    print(f'robber: {robber}')
 
     bank_dict = create_bank()
 
@@ -257,16 +339,7 @@ def main():
 
     player_dict = create_players(4)
     
-    roll_dice(G,player_dict,bank_dict, roll_lookup)
-
-    print(G.nodes(data=True))
-
-    print(player_dict['red'].settlements)
-
-    print(G.nodes[0]['player'])
-    print(G.nodes[0]['settlement'])
-
-    G, player_dict = place_settlement(G, "red", player_dict, 0)
+    roll_dice(roll_lookup)
 
     print(player_dict['red'].settlements)
 
@@ -279,9 +352,35 @@ def main():
 
     print(G.edges[(0,1)]['player'])
 
-    nx.draw(G)
+    print(f'red resources {player_dict["red"].resources}')
+    print(f'blue resources {player_dict["blue"].resources}')
 
-    plt.show()
+    G, player_dict = place_road(G, "red", player_dict, (8,9))
+    G, player_dict = place_settlement(G, "red", player_dict, 9)
+    G, player_dict = place_road(G, "red", player_dict, (38,11))
+    G, player_dict = place_city(G, "red", player_dict, 38)
+    G, player_dict = place_settlement(G, "blue", player_dict, 45)
+    G, player_dict = place_settlement(G, "red", player_dict, 44)
+    print(f'placed settlements for red on nodes 0 and 1')
+    print(f'placed settlements for blue on nodes 45')
+    
+    roll = roll_dice(roll_lookup)
+
+    
+    
+    player_dict, bank_dict = give_resource(G, roll, player_dict, "red", terrain_lookup, bank_dict,robber)
+    player_dict, bank_dict = give_resource(G, roll, player_dict, "blue", terrain_lookup, bank_dict,robber)
+    player_dict, bank_dict = give_resource(G, roll, player_dict, "green", terrain_lookup, bank_dict,robber)
+    player_dict, bank_dict = give_resource(G, roll, player_dict, "yellow", terrain_lookup, bank_dict,robber)
+
+    print(f'red resources {player_dict["red"].resources}')
+    print(f'blue resources {player_dict["blue"].resources}')
+    print(f'green resources {player_dict["green"].resources}')
+    
+
+    nx.draw(G, with_labels=True, font_weight='bold')
+
+    #plt.show()
     
 
 if __name__ == "__main__":
